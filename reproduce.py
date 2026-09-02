@@ -1,6 +1,10 @@
-"""Sweep the rank across seeds and write results.json.
+"""The experiment: the same hand, sampled two ways, decomposed the same way.
 
-Report the whole spectrum, not the first two numbers. Where the curve knees is the actual finding.
+The headline number of this lab is not a number. It is that Santello's 80% survives on a real
+Shadow Hand *only when the postures are coordinated* — and collapses to about a quarter when every
+actuator is drawn independently. Same hand, same joint limits, same decomposition.
+
+Writes `results.json` and `eigengrasps.npz`; `publish.py` turns the latter into a Hub artifact.
 """
 
 from __future__ import annotations
@@ -10,50 +14,48 @@ import json
 
 import numpy as np
 
-import baselines
-from evaluate import reconstruction_error, subspace_distance, variance_held
+from evaluate import reconstruction_error, variance_held
 from method import ASSUMPTIONS, eigengrasps, reconstruct
-from synthetic import postures
 
 RANKS = [1, 2, 3, 5, 8]
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--seeds", type=int, default=5)
-    parser.add_argument("--true-rank", type=int, default=2)
+    parser.add_argument("--postures", type=int, default=600)
+    parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
-    records = []
-    for seed in range(args.seeds):
-        x, basis = postures(rank=args.true_rank, seed=seed)
-        floor = baselines.single_joints(x.shape[1], args.true_rank)
+    import hand
+
+    records, keep = [], None
+    for coordinated in (True, False):
+        x = hand.postures(args.postures, seed=args.seed, coordinated=coordinated)
         for rank in RANKS:
-            components, _ = eigengrasps(x, rank=rank)
+            components, ratio = eigengrasps(x, rank=rank)
             records.append(
                 {
-                    "seed": seed,
+                    "coordinated": coordinated,
                     "rank": rank,
                     "variance_held": variance_held(x, components),
-                    "recon_err": reconstruction_error(x, reconstruct(x, components)),
-                    "subspace_dist": subspace_distance(components[:, : args.true_rank], basis),
-                    "floor_variance": variance_held(x, floor),
+                    "recon_err_rad": reconstruction_error(x, reconstruct(x, components)),
                 }
             )
+            if coordinated and rank == 2:
+                keep = (components, ratio)
 
     with open("results.json", "w") as handle:
         json.dump({"assumptions": ASSUMPTIONS, "records": records}, handle, indent=2)
+    if keep is not None:
+        np.savez("eigengrasps.npz", components=keep[0], variance=keep[1], coordinated=True)
 
-    print(f"{'rank':>5} {'variance':>10} {'recon err':>11} {'subspace':>10} {'floor':>8}")
-    for rank in RANKS:
-        rows = [r for r in records if r["rank"] == rank]
-        print(
-            f"{rank:>5} {np.mean([r['variance_held'] for r in rows]):>10.4f} "
-            f"{np.mean([r['recon_err'] for r in rows]):>11.3e} "
-            f"{np.mean([r['subspace_dist'] for r in rows]):>10.3e} "
-            f"{np.mean([r['floor_variance'] for r in rows]):>8.4f}"
-        )
-    print("\nOn rank-2 synthetic data, rank 2 should hold ~1.0 once method.py is yours.")
+    print(f"{'sampling':>14} {'rank':>5} {'variance':>10} {'recon (rad)':>12}")
+    for coordinated in (True, False):
+        for rank in RANKS:
+            row = next(r for r in records if r["coordinated"] == coordinated and r["rank"] == rank)
+            label = "coordinated" if coordinated else "independent"
+            print(f"{label:>14} {rank:>5} {row['variance_held']:>10.3f} {row['recon_err_rad']:>12.4f}")
+    print("\nresults.json and eigengrasps.npz written. `python publish.py --repo you/name` puts them on the Hub.")
 
 
 if __name__ == "__main__":

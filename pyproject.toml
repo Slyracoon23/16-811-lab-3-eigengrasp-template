@@ -3,7 +3,7 @@ name = "lab-eigengrasp"
 version = "0.1.0"
 description = "Hand posture subspaces: the principal components a hand grasps in"
 requires-python = ">=3.10"
-dependencies = ["numpy>=1.26", "scipy>=1.11", "matplotlib>=3.8"]
+dependencies = ["numpy>=1.26", "scipy>=1.11", "matplotlib>=3.8", "mujoco>=3.1", "robot_descriptions>=1.12", "torch>=2.2", "huggingface_hub>=0.24"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
@@ -11,3 +11,4 @@ dev = ["pytest>=8.0"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = ["slow: fetches the Shadow Hand or trains a network"]

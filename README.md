@@ -6,15 +6,21 @@ grasps in it.
 
 **Technique:** Ciocarlie & Allen, *Hand Posture Subspaces for Dexterous Robotic Grasping*,
 IJRR 28(7):851–867, 2009 — after Santello et al., J. Neurosci. 18(23), 1998.
-**Checked against:** [DexGraspNet](https://github.com/PKU-EPIC/DexGraspNet) ([arXiv:2210.02697](https://arxiv.org/abs/2210.02697)).
+**Checked against:** a learned latent of the same dimension, and [DexGraspNet](https://github.com/PKU-EPIC/DexGraspNet).
+**Built on:** the [Shadow Hand](https://github.com/google-deepmind/mujoco_menagerie) in MuJoCo,
+[PyTorch](https://pytorch.org) for the autoencoder, the [Hugging Face Hub](https://huggingface.co) for the result.
 **From the book:** Gallier & Quaintance ch. 21.4–21.5 (PCA, best affine approximation), 20 (SVD), 5 (rank), 16 (spectral theorem).
 
 ## Start
 
 ```bash
-make check        # 10 tests. 3 fail. Those 3 are the job.
-make reproduce    # runs now, with a deliberately wrong subspace. Beat that number.
+make check              # 11 tests. 3 fail on the fast subset. Those are the job.
+make check -- -m "not slow"   # skip the two that fetch the hand and train a net
+make reproduce          # runs now, with a deliberately wrong subspace. Beat that number.
 ```
+
+The Shadow Hand is fetched once by `robot_descriptions` (a few hundred megabytes, a minute) and
+cached. A GPU is used if you have one and is not needed.
 
 `method.py` ships something that runs and is wrong: it claims the hand grasps by moving joints 0
 and 1. Your first edit moves a real number.
@@ -48,6 +54,36 @@ principal angle is the honest measure, and `evaluate.py` uses it.
 | `reproduce.py` | Rank sweep across seeds → `results.json` |
 | `extend.py` | Your own ideas, as switches |
 | `tests/` | The to-do list |
+
+## The finding, which is not the one the paper sets you up for
+
+Run `make reproduce` and you get the same hand decomposed twice:
+
+```
+      sampling  rank   variance  recon (rad)
+   coordinated     2      0.845       0.6190
+   independent     2      0.253       1.0122
+```
+
+**Santello's 80% is a fact about coordination, not about hands.** Draw every actuator on a real
+Shadow Hand independently and two components hold about a quarter of the variance. Draw a handful
+of coordinated grasp strategies and they hold most of it. Same joints, same limits, same SVD.
+
+That reframes the whole 2009 result: eigengrasps work because people use their fingers together,
+so any variance figure quoted without saying how the postures were sampled means nothing. It is
+also the trap in DexGraspNet, whose grasps were *synthesised* in eigengrasp space.
+
+## And the 2026 question
+
+`latent.py` trains an autoencoder at the same latent dimension. PCA is the best **linear**
+subspace — chapter 21 proves it — so a nonlinear latent should win. It does, by about 4%:
+
+```
+latent 2:  PCA 0.6190 rad   autoencoder 0.5963 rad   (1.04x)
+```
+
+Four per cent, for a network, a training loop and a GPU dependency. Writing that down — and
+deciding it is not worth it here — is the skill the lab is actually training.
 
 ## Past the paper
 
