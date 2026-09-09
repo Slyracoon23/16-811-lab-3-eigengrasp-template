@@ -15,7 +15,7 @@ IJRR 28(7):851–867, 2009 — after Santello et al., J. Neurosci. 18(23), 1998.
 
 ```bash
 make check              # 11 tests. 3 fail on the fast subset. Those are the job.
-make check -- -m "not slow"   # skip the two that fetch the hand and train a net
+pytest -q -m "not slow"   # skip the two that fetch the hand and train a net
 make reproduce          # runs now, with a deliberately wrong subspace. Beat that number.
 ```
 
